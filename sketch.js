@@ -42,7 +42,7 @@ let soundEventStartTime = 0;
 let soundEventDuration = 200; // ms to analyze after peak detection
 
 function setup() {
-  createCanvas(800, 600);
+  createCanvas(1400, 800);
   
   // Initialize microphone with enhanced settings
   mic = new p5.AudioIn();
@@ -242,36 +242,36 @@ function drawCircleMeter() {
   let centerY = height / 2;
   let maxRadius = 150;
   
-  // Background circle
+  // Background circle - more translucent
   noFill();
-  stroke(50);
+  stroke(50, 50, 50, 80); // Added alpha for translucency
   strokeWeight(20);
   circle(centerX, centerY, maxRadius * 2);
   
   // Active level arc
   let arcRadius = map(smoothLevel, 0, 1, 0, maxRadius);
   
-  // Color based on level intensity
+  // Color based on level intensity - more translucent
   if (smoothLevel > 0.7) {
-    stroke(255, 50, 50); // Red for high levels
+    stroke(255, 50, 50, 120); // Red for high levels
   } else if (smoothLevel > 0.4) {
-    stroke(255, 200, 50); // Orange for medium levels
+    stroke(255, 200, 50, 120); // Orange for medium levels
   } else {
-    stroke(50, 255, 100); // Green for low levels
+    stroke(50, 255, 100, 120); // Green for low levels
   }
   
   strokeWeight(20);
   circle(centerX, centerY, arcRadius * 2);
   
-  // Inner glow effect
+  // Inner glow effect - more subtle
   if (smoothLevel > 0.1) {
-    stroke(255, 255, 255, 100);
+    stroke(255, 255, 255, 60);
     strokeWeight(5);
     circle(centerX, centerY, arcRadius * 2);
   }
   
-  // Center dot
-  fill(255);
+  // Center dot - more translucent
+  fill(255, 255, 255, 150);
   noStroke();
   circle(centerX, centerY, 10);
 }
@@ -798,8 +798,8 @@ function explodeFirework(firework) {
     dominantPitch: firework.pitch
   };
   
-  // Enhanced particle count with more dramatic scaling
-  let baseParticles = map(characteristics.intensity, 0, 1, 8, 80); // Wider range
+  // Enhanced particle count with better minimum visibility
+  let baseParticles = map(characteristics.intensity, 0, 1, 12, 50); // Better minimum for small sounds
   
   // Modify based on sound type
   let numParticles = baseParticles;
@@ -814,34 +814,34 @@ function explodeFirework(firework) {
   let colors = getEnhancedFireworkColors(characteristics);
   
   // Enhanced explosion size scaling
-  let explosionScale = map(characteristics.intensity, 0, 1, 0.3, 2.5); // Much more dramatic scaling
-  let speedMultiplier = map(characteristics.intensity, 0, 1, 0.4, 2.2); // Speed also scales with intensity
-  let sizeMultiplier = map(characteristics.intensity, 0, 1, 0.5, 3.0); // Particle size scaling
+  let explosionScale = map(characteristics.intensity, 0, 1, 0.7, 1.8); // Better minimum scale for visibility
+  let speedMultiplier = map(characteristics.intensity, 0, 1, 0.6, 1.6); // Better minimum speed
+  let sizeMultiplier = map(characteristics.intensity, 0, 1, 0.8, 2.0); // Better minimum particle size
   
   for (let i = 0; i < numParticles; i++) {
     let angle = random(TWO_PI);
     
     // Base speed with intensity scaling
-    let baseSpeed = random(1, 8);
+    let baseSpeed = random(1, 6);
     let speed = baseSpeed * speedMultiplier * explosionScale;
     
     // Different explosion patterns based on sound type
     if (characteristics.soundType === 'snap') {
       // Sharp, fast explosion for snaps
-      speed *= 1.4;
-      angle += random(-0.4, 0.4); // More angle variation for bigger explosions
+      speed *= 1.2;
+      angle += random(-0.3, 0.3); // Moderate angle variation
     } else if (characteristics.soundType === 'whistle') {
       // Gentle, flowing explosion for whistles
       speed *= 0.7;
     }
     
-    // Enhanced particle size with dramatic scaling
-    let baseSize = random(1, 4);
+    // Enhanced particle size with better minimum visibility
+    let baseSize = random(2, 4);
     let particleSize = baseSize * sizeMultiplier * explosionScale;
     
-    // Enhanced particle life based on intensity (bigger explosions last longer)
-    let baseLife = random(30, 80);
-    let particleLife = baseLife * map(characteristics.intensity, 0, 1, 0.7, 1.8);
+    // Enhanced particle life based on intensity (ensure minimum visibility)
+    let baseLife = random(40, 70);
+    let particleLife = baseLife * map(characteristics.intensity, 0, 1, 1.0, 1.4);
     
     let particle = {
       x: firework.x,
