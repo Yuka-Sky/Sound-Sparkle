@@ -2,13 +2,10 @@
 let mic;
 let micLevel = 0;
 let smoothLevel = 0;
-let meterType = 'circle'; // 'bar' or 'circle'
 
-// Enhanced sensitivity and calibration variables
+// Enhanced sensitivity variables
 let sensitivity = 3.0; // Amplification factor
 let maxRecordedLevel = 0; // Track the maximum level seen
-let autoCalibrate = true; // Auto-adjust sensitivity
-let calibrationTime = 0; // Timer for calibration period
 let dynamicRange = 0.5; // Dynamic range adjustment
 let peakHold = 0; // Peak hold value
 let peakDecay = 0.95; // How fast peaks decay
@@ -41,8 +38,11 @@ let soundEventActive = false;
 let soundEventStartTime = 0;
 let soundEventDuration = 200; // ms to analyze after peak detection
 
+// UI visibility toggle
+let showUI = false; // Toggle for hiding/showing text displays
+
 function setup() {
-  createCanvas(800, 600);
+  createCanvas(1400, 800);
   
   // Initialize microphone with enhanced settings
   mic = new p5.AudioIn();
@@ -55,18 +55,15 @@ function setup() {
   // Initialize ML5 pitch detection
   initializePitchDetection();
   
-  // Set initial calibration period
-  calibrationTime = millis();
+
   
   // Display initialization info
   console.log('🎆 Sound Sparkle - Enhanced Audio Analysis & Fireworks initialized');
   console.log('🎵 Using FFT-based pitch detection with harmonic analysis');
   console.log('Controls:');
-  console.log('- SPACEBAR: Toggle between bar and circle meter');
   console.log('- UP/DOWN arrows: Increase/decrease sensitivity');
-  console.log('- R key: Reset calibration');
-  console.log('- A key: Toggle auto-calibration');
   console.log('- F key: Manual firework trigger');
+  console.log('- H key: Hide/show UI text displays');
   console.log('🎇 Make loud sounds (claps, shouts) to trigger fireworks!');
 }
 
@@ -124,10 +121,7 @@ function draw() {
   // Apply sensitivity amplification
   micLevel = rawLevel * sensitivity;
   
-  // Auto-calibration: adjust sensitivity based on input range
-  if (autoCalibrate) {
-    updateCalibration(rawLevel);
-  }
+
   
   // Track maximum level for dynamic range
   if (micLevel > maxRecordedLevel) {
@@ -170,11 +164,7 @@ function draw() {
   drawFireworks();
   
   // Display the visual meter
-  if (meterType === 'bar') {
-    drawBarMeter();
-  } else {
-    drawCircleMeter();
-  }
+  drawCircleMeter();
   
   // Draw frequency spectrum
   drawSpectrum();
@@ -242,97 +232,77 @@ function drawCircleMeter() {
   let centerY = height / 2;
   let maxRadius = 150;
   
-  // Background circle
+  // Background circle - more translucent
   noFill();
-  stroke(50);
+  stroke(50, 50, 50, 80); // Added alpha for translucency
   strokeWeight(20);
   circle(centerX, centerY, maxRadius * 2);
   
   // Active level arc
   let arcRadius = map(smoothLevel, 0, 1, 0, maxRadius);
   
-  // Color based on level intensity
+  // Color based on level intensity - more translucent
   if (smoothLevel > 0.7) {
-    stroke(255, 50, 50); // Red for high levels
+    stroke(255, 50, 50, 120); // Red for high levels
   } else if (smoothLevel > 0.4) {
-    stroke(255, 200, 50); // Orange for medium levels
+    stroke(255, 200, 50, 120); // Orange for medium levels
   } else {
-    stroke(50, 255, 100); // Green for low levels
+    stroke(50, 255, 100, 120); // Green for low levels
   }
   
   strokeWeight(20);
   circle(centerX, centerY, arcRadius * 2);
   
-  // Inner glow effect
+  // Inner glow effect - more subtle
   if (smoothLevel > 0.1) {
-    stroke(255, 255, 255, 100);
+    stroke(255, 255, 255, 60);
     strokeWeight(5);
     circle(centerX, centerY, arcRadius * 2);
   }
   
-  // Center dot
-  fill(255);
+  // Center dot - more translucent
+  fill(255, 255, 255, 150);
   noStroke();
   circle(centerX, centerY, 10);
 }
 
 function displayInfo() {
-  // Display current levels and settings
-  fill(255);
-  textAlign(LEFT);
-  textSize(12);
-  
-  // Left side - Audio Analysis
-  text('AUDIO ANALYSIS', 20, 20);
-  text(`Raw Level: ${(mic.getLevel() * sensitivity).toFixed(3)}`, 20, 40);
-  text(`Processed Level: ${smoothLevel.toFixed(3)}`, 20, 55);
-  text(`Peak Hold: ${peakHold.toFixed(3)}`, 20, 70);
-  text(`Pitch: ${pitch.toFixed(1)} Hz`, 20, 85);
-  text(`Sensitivity: ${sensitivity.toFixed(1)}x`, 20, 100);
-  text(`Auto-Calibration: ${autoCalibrate ? 'ON' : 'OFF'}`, 20, 115);
-  
-  // Firework Statistics
-  text('FIREWORK SYSTEM', 20, 140);
-  text(`Active Fireworks: ${fireworks.length}`, 20, 155);
-  text(`Active Particles: ${particles.length}`, 20, 170);
-  text(`Sound Event: ${soundEventActive ? 'ANALYZING' : 'LISTENING'}`, 20, 185);
-  text(`Buffer Size: ${soundBuffer.length}/${bufferSize}`, 20, 200);
-  text(`Spectral Centroid: ${spectralHistory.length > 0 ? calculateSpectralCentroid(soundBuffer).toFixed(0) : '0'} Hz`, 20, 215);
-  
-  // Right side controls
-  textAlign(RIGHT);
-  textSize(12);
-  text('CONTROLS', width - 20, 20);
-  text('SPACEBAR: Toggle meter', width - 20, 40);
-  text('↑/↓: Sensitivity ±0.5', width - 20, 55);
-  text('R: Reset calibration', width - 20, 70);
-  text('A: Toggle auto-calibration', width - 20, 85);
-  text('F: Manual firework', width - 20, 100);
-  text('Make loud sounds to trigger fireworks!', width - 20, 120);
+  // Only show UI text displays if showUI is true
+  if (showUI) {
+    // Display current levels and settings
+    fill(255);
+    textAlign(LEFT);
+    textSize(12);
+    
+    // Left side - Audio Analysis
+    text('AUDIO ANALYSIS', 20, 20);
+    text(`Raw Level: ${(mic.getLevel() * sensitivity).toFixed(3)}`, 20, 40);
+    text(`Processed Level: ${smoothLevel.toFixed(3)}`, 20, 55);
+    text(`Peak Hold: ${peakHold.toFixed(3)}`, 20, 70);
+    text(`Pitch: ${pitch.toFixed(1)} Hz`, 20, 85);
+    text(`Sensitivity: ${sensitivity.toFixed(1)}x`, 20, 100);
+    
+    // Firework Statistics
+    text('FIREWORK SYSTEM', 20, 135);
+    text(`Active Fireworks: ${fireworks.length}`, 20, 155);
+    text(`Active Particles: ${particles.length}`, 20, 170);
+    text(`Sound Event: ${soundEventActive ? 'ANALYZING' : 'LISTENING'}`, 20, 185);
+    text(`Buffer Size: ${soundBuffer.length}/${bufferSize}`, 20, 200);
+    text(`Spectral Centroid: ${spectralHistory.length > 0 ? calculateSpectralCentroid(soundBuffer).toFixed(0) : '0'} Hz`, 20, 215);
+    
+    // Right side controls
+    textAlign(RIGHT);
+    textSize(12);
+    text('CONTROLS', width - 20, 20);
+    text('↑/↓: Sensitivity ±0.5', width - 20, 40);
+    text('F: Manual firework', width - 20, 55);
+    text('H: Toggle UI display', width - 20, 70);
+  }
   
   // Center notifications
   textAlign(CENTER);
   
-  // Peak indicator with firework trigger info
-  if (smoothLevel > 0.8) {
-    fill(255, 50, 50);
-    textSize(20);
-    text('🔥 PEAK! 🔥', width / 2, 120);
-  }
-  
-  // Firework trigger indicator
-  if (millis() - lastFireworkTime < 200) {
-    fill(255, 255, 0);
-    textSize(16);
-    text('✨ FIREWORK TRIGGERED! ✨', width / 2, 140);
-  }
-  
-  // Calibration status
-  if (autoCalibrate && (millis() - calibrationTime) < 5000) {
-    fill(255, 255, 0);
-    textSize(14);
-    text('Calibrating... Make some noise!', width / 2, height - 80);
-  }
+
   
   // Pitch detection status
   if (pitch > 0) {
@@ -340,26 +310,14 @@ function displayInfo() {
     textSize(14);
     text(`Detected Pitch: ${pitch.toFixed(1)} Hz`, width / 2, height - 60);
   }
-  
-  // Low signal warning
-  if (maxRecordedLevel < 0.1 && (millis() - calibrationTime) > 3000) {
-    fill(255, 100, 100);
-    textSize(14);
-    text('Low signal detected - try increasing sensitivity (↑)', width / 2, height - 40);
-  }
-  
+
   // Instructions
   fill(150);
   textSize(12);
-  text('Try clapping, shouting, or making sudden loud sounds!', width / 2, height - 20);
+  text('Try clapping, shouting, or making sudden loud sounds!', width / 2, height - 40);
 }
 
 function keyPressed() {
-  // Toggle between bar and circle meter
-  if (key === ' ') { // Spacebar
-    meterType = (meterType === 'bar') ? 'circle' : 'bar';
-    console.log(`Switched to ${meterType} meter`);
-  }
   
   // Sensitivity controls
   if (keyCode === UP_ARROW) {
@@ -374,62 +332,22 @@ function keyPressed() {
     console.log(`Sensitivity decreased to ${sensitivity.toFixed(1)}x`);
   }
   
-  // Reset calibration
-  if (key === 'r' || key === 'R') {
-    resetCalibration();
-    console.log('Calibration reset');
-  }
-  
-  // Toggle auto-calibration
-  if (key === 'a' || key === 'A') {
-    autoCalibrate = !autoCalibrate;
-    console.log(`Auto-calibration ${autoCalibrate ? 'enabled' : 'disabled'}`);
-    if (autoCalibrate) {
-      calibrationTime = millis();
-    }
-  }
+
   
   // Manual firework trigger
   if (key === 'f' || key === 'F') {
     triggerFirework(random(width), random(height/2), pitch || random(200, 800));
     console.log('Manual firework triggered!');
   }
-}
-
-// Auto-calibration function
-function updateCalibration(rawLevel) {
-  // During the first 5 seconds, automatically adjust sensitivity
-  if (millis() - calibrationTime < 5000) {
-    // If we're getting very quiet signals, increase sensitivity
-    if (maxRecordedLevel < 0.2 && rawLevel > 0.01) {
-      sensitivity = min(sensitivity * 1.02, 8.0);
-    }
-    // If we're getting very loud signals, decrease sensitivity
-    else if (rawLevel * sensitivity > 0.9) {
-      sensitivity = max(sensitivity * 0.98, 1.0);
-    }
-  }
   
-  // Continuous auto-adjustment (more gentle)
-  else {
-    // Gradually adjust dynamic range based on recent activity
-    if (rawLevel * sensitivity > 0.8) {
-      dynamicRange = min(dynamicRange * 1.01, 1.0);
-    } else if (maxRecordedLevel < 0.3) {
-      dynamicRange = max(dynamicRange * 0.999, 0.3);
-    }
+  // Toggle UI visibility
+  if (key === 'h' || key === 'H') {
+    showUI = !showUI;
+    console.log(`UI display ${showUI ? 'shown' : 'hidden'}`);
   }
 }
 
-// Reset calibration function
-function resetCalibration() {
-  maxRecordedLevel = 0;
-  peakHold = 0;
-  calibrationTime = millis();
-  dynamicRange = 0.5;
-  sensitivity = 3.0;
-  console.log('Calibration values reset to defaults');
-}
+
 
 // Enhanced peak detection with temporal analysis for complex sounds
 function detectAmplitudePeaksWithTemporal() {
@@ -798,8 +716,8 @@ function explodeFirework(firework) {
     dominantPitch: firework.pitch
   };
   
-  // Enhanced particle count with more dramatic scaling
-  let baseParticles = map(characteristics.intensity, 0, 1, 8, 80); // Wider range
+  // Enhanced particle count with better minimum visibility
+  let baseParticles = map(characteristics.intensity, 0, 1, 12, 50); // Better minimum for small sounds
   
   // Modify based on sound type
   let numParticles = baseParticles;
@@ -814,34 +732,34 @@ function explodeFirework(firework) {
   let colors = getEnhancedFireworkColors(characteristics);
   
   // Enhanced explosion size scaling
-  let explosionScale = map(characteristics.intensity, 0, 1, 0.3, 2.5); // Much more dramatic scaling
-  let speedMultiplier = map(characteristics.intensity, 0, 1, 0.4, 2.2); // Speed also scales with intensity
-  let sizeMultiplier = map(characteristics.intensity, 0, 1, 0.5, 3.0); // Particle size scaling
+  let explosionScale = map(characteristics.intensity, 0, 1, 0.7, 1.8); // Better minimum scale for visibility
+  let speedMultiplier = map(characteristics.intensity, 0, 1, 0.6, 1.6); // Better minimum speed
+  let sizeMultiplier = map(characteristics.intensity, 0, 1, 0.8, 2.0); // Better minimum particle size
   
   for (let i = 0; i < numParticles; i++) {
     let angle = random(TWO_PI);
     
     // Base speed with intensity scaling
-    let baseSpeed = random(1, 8);
+    let baseSpeed = random(1, 6);
     let speed = baseSpeed * speedMultiplier * explosionScale;
     
     // Different explosion patterns based on sound type
     if (characteristics.soundType === 'snap') {
       // Sharp, fast explosion for snaps
-      speed *= 1.4;
-      angle += random(-0.4, 0.4); // More angle variation for bigger explosions
+      speed *= 1.2;
+      angle += random(-0.3, 0.3); // Moderate angle variation
     } else if (characteristics.soundType === 'whistle') {
       // Gentle, flowing explosion for whistles
       speed *= 0.7;
     }
     
-    // Enhanced particle size with dramatic scaling
-    let baseSize = random(1, 4);
+    // Enhanced particle size with better minimum visibility
+    let baseSize = random(2, 4);
     let particleSize = baseSize * sizeMultiplier * explosionScale;
     
-    // Enhanced particle life based on intensity (bigger explosions last longer)
-    let baseLife = random(30, 80);
-    let particleLife = baseLife * map(characteristics.intensity, 0, 1, 0.7, 1.8);
+    // Enhanced particle life based on intensity (ensure minimum visibility)
+    let baseLife = random(40, 70);
+    let particleLife = baseLife * map(characteristics.intensity, 0, 1, 1.0, 1.4);
     
     let particle = {
       x: firework.x,
