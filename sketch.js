@@ -10,18 +10,21 @@ let dynamicRange = 0.5; // Dynamic range adjustment
 let peakHold = 0; // Peak hold value
 let peakDecay = 0.95; // How fast peaks decay
 
+// Audio feedback prevention
+let lastMusicPlayTime = 0;
+let musicSuppressionDuration = 1000; // Suppress input for 1 second after music plays
+let inputSuppressed = false;
+
 // FFT and pitch detection variables
 let fft;
 let pitchDetection;
 let pitch = 0;
-let confidence = 0;
 let spectrum = [];
 let frequencyBins = 64; // Number of frequency bins to analyze
 
 // Enhanced temporal analysis for complex sounds
 let soundBuffer = []; // Buffer to store recent sound characteristics
 let bufferSize = 15; // Frames to analyze (250ms at 60fps)
-let pitchHistory = []; // History of pitch values
 
 // Firework system variables
 let fireworks = [];
@@ -40,26 +43,64 @@ let soundEventDuration = 200; // ms to analyze after peak detection
 // UI visibility toggle
 let showUI = false; // Toggle for hiding/showing text displays
 
-// Simple Generative Music System
-let polySynth;
-let musicEnabled = true;
-let lastMusicTime = 0;
-let musicInterval = 1000; // Base interval between notes
-
-// Music scales mapped to pitch ranges
-let musicScales = {
-  low: [60, 62, 64, 67, 69], // C major pentatonic (low pitches)
-  midLow: [62, 64, 66, 69, 71], // D dorian pentatonic
-  midHigh: [64, 67, 69, 72, 74], // E minor pentatonic
-  high: [67, 69, 71, 74, 76] // G major pentatonic (high pitches)
+// Advanced Generative Music System
+let musicSystem = {
+  // Synthesizers for different layers
+  bassSynth: null,
+  melodySynth: null,
+  harmonySynth: null,
+  percussionSynth: null,
+  
+  // Musical parameters
+  enabled: true,
+  key: 'C',
+  mode: 'major',
+  tempo: 120,
+  
+  // Timing
+  lastBassTime: 0,
+  lastMelodyTime: 0,
+  lastHarmonyTime: 0,
+  lastPercussionTime: 0,
+  
+  // Musical patterns and sequences
+  bassPattern: [],
+  melodySequence: [],
+  harmonyProgression: [],
+  
+  // Current positions in patterns
+  bassPosition: 0,
+  melodyPosition: 0,
+  harmonyPosition: 0,
+  
+  // Musical evolution
+  complexity: 0.1, // Starts simple, builds over time
+  activity: 0, // How active the music should be based on fireworks
+  
+  // Scales and chord progressions
+  scales: {
+    major: [0, 2, 4, 5, 7, 9, 11],
+    minor: [0, 2, 3, 5, 7, 8, 10]
+  },
+  
+  chordProgressions: {
+    major: [[0, 2, 4], [5, 7, 9], [3, 5, 7], [0, 2, 4]], // I-vi-IV-I in scale degrees
+    minor: [[0, 2, 4], [3, 5, 7], [5, 7, 9], [0, 2, 4]] // i-III-v-i
+  }
 };
 
-let currentScale = musicScales.low;
-let baseTempo = 120; // Base BPM
-let musicFrequencyThreshold = 90; // Hz - minimum frequency to trigger music
-let musicEnergyThreshold = 0.12; // Minimum energy above threshold frequency (0.1-0.5 range)
+// Firework-to-music mapping parameters
+let musicMapping = {
+  fireworkEvents: [], // Track recent firework events for musical analysis
+  eventHistory: [], // Longer history for pattern detection
+  maxEventHistory: 50,
+  
+  // Sensitivity controls
+  frequencyThreshold: 90,
+  energyThreshold: 0.12
+};
 
-// Initialize microphone, FFT, ML5 pitch detection, and music system
+// Initialize microphone, FFT, pitch detection, and music system
 function setup() {
   createCanvas(1400, 800);
   mic = new p5.AudioIn();
@@ -67,7 +108,7 @@ function setup() {
   fft = new p5.FFT(0.8, frequencyBins);
   fft.setInput(mic);
   initializePitchDetection();
-  initializeMusic();
+  initializeGenerativeMusic();
 }
 
 function initializePitchDetection() {
@@ -105,10 +146,8 @@ function getPitch() {
     pitchDetection.getPitch(function(err, frequency) {
       if (!err && frequency) {
         pitch = frequency;
-        confidence = 1; // ML5 doesn't provide confidence directly
       } else {
         pitch = 0;
-        confidence = 0;
       }
       getPitch(); // Continue getting pitch
     });
@@ -117,7 +156,17 @@ function getPitch() {
 
 function draw() {
   background(20, 25, 40); // Dark blue background
+  
+  // Check if we should suppress input due to recent music output
+  inputSuppressed = (millis() - lastMusicPlayTime) < musicSuppressionDuration;
+  
   let rawLevel = mic.getLevel();
+  
+  // Apply input suppression to prevent feedback loops
+  if (inputSuppressed) {
+    rawLevel *= 0.1; // Significantly reduce sensitivity when music was just played
+  }
+  
   micLevel = rawLevel * sensitivity; // Apply sensitivity amplification
   
   // Track maximum level for dynamic range
@@ -145,7 +194,7 @@ function draw() {
   estimatePitchFromFFT(); // Always estimate pitch from FFT (ML5 is backup/comparison)
   updateSoundBuffer();
   detectAmplitudePeaksWithTemporal();  // Detect amplitude peaks for firework triggering (enhanced with temporal analysis)
-  updateReactiveMusic();
+  updateGenerativeMusic(); // Advanced generative music system
   
   updateFireworks();
   drawFireworks();
@@ -174,11 +223,21 @@ function displayInfo() {
     text(`Sound Event: ${soundEventActive ? 'ANALYZING' : 'LISTENING'}`, 20, 185);
     text(`Buffer Size: ${soundBuffer.length}/${bufferSize}`, 20, 200);
     
-    text('REACTIVE MUSIC', 20, 240);
-    text(`Music: ${musicEnabled ? 'ON' : 'OFF'}`, 20, 255);
-    text(`Current Scale: ${getCurrentScaleName()}`, 20, 270);
-    text(`Freq Threshold: ${musicFrequencyThreshold} Hz`, 20, 285);
-    text(`Energy Threshold: ${musicEnergyThreshold.toFixed(3)}`, 20, 300);
+    text('GENERATIVE MUSIC', 20, 240);
+    
+    // Music status with color coding
+    if (musicSystem.enabled) {
+      fill(0, 255, 0); // Green for ON
+      text('Music: ON', 20, 255);
+    } else {
+      fill(255, 100, 100); // Red for OFF
+      text('Music: OFF', 20, 255);
+    }
+    
+    fill(255); // Reset to white for other text
+    text(`Complexity: ${(musicSystem.complexity * 100).toFixed(0)}%`, 20, 270);
+    text(`Activity: ${(musicSystem.activity * 100).toFixed(0)}%`, 20, 285);
+    text(`Events in Memory: ${musicMapping.fireworkEvents.length}`, 20, 300);
     
     textAlign(RIGHT);
     textSize(12);
@@ -187,8 +246,7 @@ function displayInfo() {
     text('F: Manual firework', width - 20, 55);
     text('H: Toggle UI display', width - 20, 70);
     text('M: Toggle music', width - 20, 85);
-    text('[ / ]: Music freq threshold', width - 20, 100);
-    text('- / +: Music energy threshold', width - 20, 115);
+    text('R: Reset music patterns', width - 20, 100);
   }
   
   textAlign(CENTER);
@@ -200,47 +258,6 @@ function displayInfo() {
   fill(150);
   textSize(12);
   text('Try clapping, shouting, or making sudden loud sounds!', width / 2, height - 40);
-}
-
-function keyPressed() {
-  if (keyCode === UP_ARROW) {
-    sensitivity += 0.5;
-    sensitivity = constrain(sensitivity, 0.5, 10);
-    console.log(`Sensitivity increased to ${sensitivity.toFixed(1)}x`);
-  }
-  if (keyCode === DOWN_ARROW) {
-    sensitivity -= 0.5;
-    sensitivity = constrain(sensitivity, 0.5, 10);
-    console.log(`Sensitivity decreased to ${sensitivity.toFixed(1)}x`);
-  }
-  if (key === 'f' || key === 'F') {
-    manualFirework(random(width), random(height/2), pitch || random(200, 800));
-    console.log('Manual firework triggered!');
-  }
-  if (key === 'h' || key === 'H') {
-    showUI = !showUI;
-    console.log(`UI display ${showUI ? 'shown' : 'hidden'}`);
-  }
-  if (key === 'm' || key === 'M') {
-    musicEnabled = !musicEnabled;
-    console.log(`Reactive music ${musicEnabled ? 'enabled' : 'disabled'}`);
-  }
-  if (key === '[') {
-    musicFrequencyThreshold = Math.max(20, musicFrequencyThreshold - 10);
-    console.log(`Music frequency threshold: ${musicFrequencyThreshold} Hz`);
-  }
-  if (key === ']') {
-    musicFrequencyThreshold = Math.min(200, musicFrequencyThreshold + 10);
-    console.log(`Music frequency threshold: ${musicFrequencyThreshold} Hz`);
-  }
-  if (key === '-' || key === '_') {
-    musicEnergyThreshold = Math.max(0.01, musicEnergyThreshold - 0.02);
-    console.log(`Music energy threshold: ${musicEnergyThreshold.toFixed(3)}`);
-  }
-  if (key === '=' || key === '+') {
-    musicEnergyThreshold = Math.min(0.5, musicEnergyThreshold + 0.02);
-    console.log(`Music energy threshold: ${musicEnergyThreshold.toFixed(3)}`);
-  }
 }
 
 function drawCircleMeter() {
@@ -353,12 +370,6 @@ function updateSoundBuffer() {
   // Keep buffer at manageable size
   if (soundBuffer.length > bufferSize) {
     soundBuffer.shift();
-  }
-  
-  // Update pitch history
-  pitchHistory.push(pitch);
-  if (pitchHistory.length > bufferSize) {
-    pitchHistory.shift();
   }
 }
 
@@ -514,6 +525,9 @@ function triggerFirework(x, y, characteristics) {
   };
   
   fireworks.push(firework);
+  
+  // Record this firework event for musical analysis
+  recordFireworkEvent(firework);
 }
 
 // Manual triggers
@@ -734,110 +748,412 @@ function drawFireworks() {
 
 // Handle user interaction for microphone permission
 function mousePressed() {
+  console.log('Mouse pressed - checking audio context state:', getAudioContext().state);
   if (getAudioContext().state !== 'running') {
-    getAudioContext().resume();
+    getAudioContext().resume().then(() => {
+      console.log('Audio context resumed successfully');
+    }).catch(err => {
+      console.error('Failed to resume audio context:', err);
+    });
+  }
+  
+  // Test if music system is working
+  testMusicSystem();
+}
+
+function testMusicSystem() {
+  console.log('Testing music system...');
+  try {
+    if (musicSystem.melodySynth) {
+      console.log('Playing test note...');
+      musicSystem.melodySynth.play(440, 0.2, 0, 0.5); // Play A4 for 0.5 seconds
+      lastMusicPlayTime = millis(); // Track when music was played
+    }
+  } catch (error) {
+    console.error('Music system test failed:', error);
   }
 }
 
-// ============= SIMPLE REACTIVE MUSIC SYSTEM =============
-// Maps user sound inputs to musical parameters
-
-function initializeMusic() {
-  // Create PolySynth with subtle settings
-  polySynth = new p5.PolySynth();
-  polySynth.setADSR(0.1, 0.3, 0.3, 1.5); // Gentle attack, moderate decay/sustain, long release
-  console.log('Reactive music system initialized');
+// Unified keyboard controls
+function keyPressed() {
+  // Arrow keys for sensitivity
+  if (keyCode === UP_ARROW) {
+    sensitivity += 0.5;
+    sensitivity = constrain(sensitivity, 0.5, 10);
+    console.log(`Sensitivity increased to ${sensitivity.toFixed(1)}x`);
+  }
+  if (keyCode === DOWN_ARROW) {
+    sensitivity -= 0.5;
+    sensitivity = constrain(sensitivity, 0.5, 10);
+    console.log(`Sensitivity decreased to ${sensitivity.toFixed(1)}x`);
+  }
+  
+  // Letter keys
+  if (key === ' ') { // Spacebar
+    testMusicSystem();
+  } else if (key === 'f' || key === 'F') {
+    manualFirework(random(width), random(height/2), pitch || random(200, 800));
+    console.log('Manual firework triggered!');
+  } else if (key === 'h' || key === 'H') {
+    showUI = !showUI;
+    console.log(`UI display ${showUI ? 'shown' : 'hidden'}`);
+  } else if (key === 'm' || key === 'M') {
+    musicSystem.enabled = !musicSystem.enabled;
+    console.log('Music toggled:', musicSystem.enabled ? 'ON' : 'OFF');
+  } else if (key === 'r' || key === 'R') {
+    resetMusicPatterns();
+    console.log('Music patterns reset');
+  }
 }
 
-function updateReactiveMusic() {
-  if (!musicEnabled || !mic) return;
+// ============= ADVANCED GENERATIVE MUSIC SYSTEM =============
+// Creates evolving musical compositions based on firework events and audio analysis
+
+function initializeGenerativeMusic() {
+  console.log('Initializing generative music system...');
+  
+  // Check if p5.PolySynth is available
+  if (typeof p5.PolySynth === 'undefined') {
+    console.error('p5.PolySynth is not available - check p5.sound.js is loaded');
+    return;
+  }
+  
+  try {
+    // Initialize multiple synthesizers for different musical layers
+    musicSystem.bassSynth = new p5.PolySynth();
+    console.log('Bass synth created');
+    
+    musicSystem.melodySynth = new p5.PolySynth();
+    console.log('Melody synth created');
+    
+    musicSystem.harmonySynth = new p5.PolySynth();
+    console.log('Harmony synth created');
+    
+    musicSystem.percussionSynth = new p5.PolySynth();
+    console.log('Percussion synth created');
+    
+    // Configure each synthesizer with safe polyphony limits
+    musicSystem.bassSynth.setADSR(0.05, 0.4, 0.4, 2.0); // Punchy bass
+    musicSystem.melodySynth.setADSR(0.1, 0.2, 0.6, 1.0); // Melodic lead
+    musicSystem.harmonySynth.setADSR(0.2, 0.3, 0.7, 2.5); // Soft harmony pads
+    musicSystem.percussionSynth.setADSR(0.01, 0.1, 0.0, 0.1); // Percussive hits
+    
+    console.log('ADSR envelopes configured');
+    
+    // Limit the number of voices to prevent conflicts
+    try {
+      if (musicSystem.harmonySynth.maxVoices !== undefined) {
+        musicSystem.harmonySynth.maxVoices = 6; // Limit harmony voices
+        musicSystem.bassSynth.maxVoices = 3;
+        musicSystem.melodySynth.maxVoices = 4;
+        musicSystem.percussionSynth.maxVoices = 2;
+        console.log('Voice limits set');
+      }
+    } catch (e) {
+      console.log('Voice limiting not available in this p5.sound version');
+    }
+    
+    // Initialize musical patterns
+    generateInitialPatterns();
+    console.log('Musical patterns generated');
+    
+    console.log('Advanced generative music system initialized successfully');
+    
+  } catch (error) {
+    console.error('Failed to initialize music system:', error);
+  }
+}
+
+function generateInitialPatterns() {
+  // Start with simple patterns that will evolve
+  musicSystem.bassPattern = [0, 0, 4, 4]; // Root and fifth
+  musicSystem.melodySequence = [0, 2, 4, 2]; // Simple ascending pattern
+  musicSystem.harmonyProgression = [
+    [0, 2, 4], // I chord
+    [5, 7, 9], // vi chord
+    [3, 5, 7], // IV chord
+    [0, 2, 4]  // I chord
+  ];
+}
+
+function updateGenerativeMusic() {
+  if (!musicSystem.enabled) return;
   
   let currentTime = millis();
   
-  // Check if enough time has passed for next note
-  if (currentTime - lastMusicTime > musicInterval) {
-    // Update musical parameters based on audio input
-    updateMusicParameters();
+  // Update musical complexity and activity based on recent firework events
+  updateMusicActivity();
+  
+  // Different layers have different update rates
+  let beatInterval = (60000 / musicSystem.tempo) / 4; // 16th note intervals
+  
+  // Bass line (plays on downbeats) - always plays to provide foundation
+  if (currentTime - musicSystem.lastBassTime > beatInterval * 4) {
+    playBassNote();
+    musicSystem.lastBassTime = currentTime;
+  }
+  
+  // Melody (varies based on activity)
+  let melodyInterval = beatInterval * (4 - musicSystem.activity * 3); // More active = faster melody
+  if (currentTime - musicSystem.lastMelodyTime > melodyInterval) {
+    if (musicSystem.activity > 0.1 || currentTime % 4000 < 50) { // Play melody when active OR periodically
+      playMelodyNote();
+    }
+    musicSystem.lastMelodyTime = currentTime;
+  }
+  
+  // Harmony (longer intervals, builds atmosphere)
+  if (currentTime - musicSystem.lastHarmonyTime > beatInterval * 8) {
+    if (musicSystem.activity > 0.05 || currentTime % 6000 < 50) { // Play harmony when active OR periodically
+      playHarmonyChord();
+    }
+    musicSystem.lastHarmonyTime = currentTime;
+  }
+  
+  // Percussion (responds to sharp transients)
+  if (shouldTriggerPercussion()) {
+    playPercussionHit();
+    musicSystem.lastPercussionTime = currentTime;
+  }
+  
+  // Evolve patterns periodically
+  if (currentTime % 8000 < 50) { // Every 8 seconds
+    evolveMusicalPatterns();
+  }
+}
+
+function updateMusicActivity() {
+  // Calculate activity based on recent firework events
+  let recentEvents = musicMapping.fireworkEvents.filter(event => 
+    millis() - event.timestamp < 5000 // Last 5 seconds
+  );
+  
+  // Update activity level
+  musicSystem.activity = map(recentEvents.length, 0, 10, 0, 1);
+  musicSystem.activity = constrain(musicSystem.activity, 0, 1);
+  
+  // Gradually increase complexity over time
+  let sessionTime = millis() / 1000; // seconds
+  musicSystem.complexity = map(sessionTime, 0, 120, 0.1, 1.0); // Build over 2 minutes
+  musicSystem.complexity = constrain(musicSystem.complexity, 0.1, 1.0);
+  
+  // Adjust tempo based on activity
+  let targetTempo = map(musicSystem.activity, 0, 1, 80, 140);
+  musicSystem.tempo = lerp(musicSystem.tempo, targetTempo, 0.02); // Smooth tempo changes
+}
+
+function playBassNote() {
+  try {
+    let scaleNote = musicSystem.bassPattern[musicSystem.bassPosition];
+    let octave = 2; // Low octave for bass
+    let note = getScaleNote(scaleNote, octave);
     
-    // Trigger a note based on current audio state
-    if (shouldTriggerNote()) {
-      playReactiveNote();
-      lastMusicTime = currentTime;
+    let velocity = map(musicSystem.activity, 0, 1, 0.1, 0.4);
+    let duration = 0.5;
+    
+    musicSystem.bassSynth.play(note, velocity, 0, duration);
+    lastMusicPlayTime = millis(); // Track when music was played
+    
+    // Advance bass pattern position
+    musicSystem.bassPosition = (musicSystem.bassPosition + 1) % musicSystem.bassPattern.length;
+  } catch (e) {
+    console.log('Bass note error:', e.message);
+  }
+}
+
+function playMelodyNote() {
+  try {
+    let scaleNote = musicSystem.melodySequence[musicSystem.melodyPosition];
+    let octave = 4 + Math.floor(musicSystem.complexity); // Higher as complexity increases
+    let note = getScaleNote(scaleNote, octave);
+    
+    let velocity = map(musicSystem.activity, 0, 1, 0.05, 0.3);
+    let duration = 0.3;
+    
+    musicSystem.melodySynth.play(note, velocity, 0, duration);
+    lastMusicPlayTime = millis(); // Track when music was played
+    
+    // Advance melody position
+    musicSystem.melodyPosition = (musicSystem.melodyPosition + 1) % musicSystem.melodySequence.length;
+  } catch (e) {
+    console.log('Melody note error:', e.message);
+  }
+}
+
+function playHarmonyChord() {
+  try {
+    let chord = musicSystem.harmonyProgression[musicSystem.harmonyPosition];
+    let octave = 3;
+    
+    let velocity = map(musicSystem.activity, 0, 1, 0.05, 0.2);
+    let duration = 2.0; // Long, atmospheric chords
+    
+    // Play chord notes with slight delays to avoid conflicts
+    for (let i = 0; i < chord.length; i++) {
+      let scaleNote = chord[i];
+      let note = getScaleNote(scaleNote, octave);
+      
+      setTimeout(() => {
+        try {
+          musicSystem.harmonySynth.play(note, velocity, 0, duration);
+          lastMusicPlayTime = millis(); // Track when music was played
+        } catch (e) {
+          console.log('Harmony note play error (safe to ignore):', e.message);
+        }
+      }, i * 50); // 50ms delay between notes
+    }
+    
+    // Advance harmony position
+    musicSystem.harmonyPosition = (musicSystem.harmonyPosition + 1) % musicSystem.harmonyProgression.length;
+  } catch (e) {
+    console.log('Harmony chord error:', e.message);
+  }
+}
+
+function shouldTriggerPercussion() {
+  // Trigger percussion on sharp volume peaks
+  let currentTime = millis();
+  
+  if (currentTime - musicSystem.lastPercussionTime < 200) return false; // Minimum interval
+  
+  return soundEventActive && smoothLevel > 0.3;
+}
+
+function playPercussionHit() {
+  try {
+    // Use high, sharp tones for percussion
+    let frequencies = [800, 1200, 1600, 2000];
+    let freq = random(frequencies);
+    
+    let velocity = map(smoothLevel, 0, 1, 0.1, 0.6);
+    let duration = 0.05; // Very short hits
+    
+    musicSystem.percussionSynth.play(freq, velocity, 0, duration);
+    lastMusicPlayTime = millis(); // Track when music was played
+  } catch (e) {
+    console.log('Percussion hit error:', e.message);
+  }
+}
+
+function getScaleNote(scaleNote, octave) {
+  let baseFreq = 261.63; // C4
+  let scale = musicSystem.scales[musicSystem.mode];
+  
+  // Handle negative scale notes (wrap around)
+  while (scaleNote < 0) {
+    scaleNote += scale.length;
+    octave--;
+  }
+  
+  let scaleIndex = scaleNote % scale.length;
+  let extraOctaves = Math.floor(scaleNote / scale.length);
+  
+  let semitones = scale[scaleIndex] + (extraOctaves * 12);
+  let frequency = baseFreq * Math.pow(2, (octave - 4) + semitones / 12);
+  
+  return frequency;
+}
+
+function evolveMusicalPatterns() {
+  if (musicSystem.complexity < 0.3) return; // Don't evolve too early
+  
+  // Evolve bass pattern
+  if (random() < 0.3) {
+    let newNote = Math.floor(random(7)); // Random scale degree
+    let randomIndex = Math.floor(random(musicSystem.bassPattern.length));
+    musicSystem.bassPattern[randomIndex] = newNote;
+  }
+  
+  // Evolve melody
+  if (random() < 0.4) {
+    let newNote = Math.floor(random(-3, 10)); // Wider range for melody
+    let randomIndex = Math.floor(random(musicSystem.melodySequence.length));
+    musicSystem.melodySequence[randomIndex] = newNote;
+  }
+  
+  // Expand patterns if complexity is high
+  if (musicSystem.complexity > 0.7 && random() < 0.2) {
+    if (musicSystem.bassPattern.length < 8) {
+      musicSystem.bassPattern.push(Math.floor(random(7)));
+    }
+    if (musicSystem.melodySequence.length < 12) {
+      musicSystem.melodySequence.push(Math.floor(random(-3, 10)));
     }
   }
 }
 
-function updateMusicParameters() {
-  // Map detected pitch to scale choice
-  if (pitchHistory.length > 0) {
-    let avgPitch = pitchHistory.reduce((sum, p) => sum + p.frequency, 0) / pitchHistory.length;
-    
-    if (avgPitch < 150) {
-      currentScale = musicScales.low;
-    } else if (avgPitch < 300) {
-      currentScale = musicScales.midLow;
-    } else if (avgPitch < 600) {
-      currentScale = musicScales.midHigh;
-    } else {
-      currentScale = musicScales.high;
+function recordFireworkEvent(firework) {
+  let event = {
+    timestamp: millis(),
+    pitch: firework.pitch,
+    intensity: firework.characteristics.intensity,
+    pitchRange: firework.characteristics.pitchRange,
+    x: firework.x,
+    y: firework.y
+  };
+  
+  musicMapping.fireworkEvents.push(event);
+  musicMapping.eventHistory.push(event);
+  
+  // Keep memory manageable
+  if (musicMapping.fireworkEvents.length > 20) {
+    musicMapping.fireworkEvents.shift();
+  }
+  if (musicMapping.eventHistory.length > musicMapping.maxEventHistory) {
+    musicMapping.eventHistory.shift();
+  }
+  
+  // Update musical parameters based on this event
+  respondToFireworkEvent(event);
+}
+
+function respondToFireworkEvent(event) {
+  // Immediate musical response to firework
+  if (!musicSystem.enabled) return;
+  
+  // Trigger a special melodic phrase based on pitch range
+  setTimeout(() => {
+    playFireworkMelody(event);
+  }, 100); // Small delay to sync with firework explosion
+  
+  // Adjust key/mode based on pitch characteristics
+  if (event.pitchRange === 'high' && random() < 0.3) {
+    if (musicSystem.mode === 'major') {
+      musicSystem.mode = 'mixolydian'; // Brighter
+    }
+  } else if (event.pitchRange === 'low' && random() < 0.3) {
+    if (musicSystem.mode === 'major') {
+      musicSystem.mode = 'minor'; // Darker
     }
   }
+}
+
+function playFireworkMelody(event) {
+  // Special melodic phrase triggered by firework
+  let pitchMap = {
+    'low': [0, 1, 2],
+    'midLow': [2, 3, 4],
+    'midHigh': [4, 5, 6],
+    'high': [5, 6, 7, 8]
+  };
   
-  // Map amplitude to tempo changes
-  let currentAmplitude = smoothLevel;
-  if (soundBuffer.length > 0) {
-    let avgAmplitude = soundBuffer.reduce((sum, val) => sum + val, 0) / soundBuffer.length;
-    
-    // Event frequency affects tempo (more events = faster music)
-    let eventDensity = soundBuffer.filter(val => val > 0.1).length / soundBuffer.length;
-    let tempoMultiplier = map(eventDensity, 0, 1, 0.5, 2.0); // Slower to faster
-    
-    // Calculate interval (lower = faster)
-    musicInterval = (60000 / baseTempo) * tempoMultiplier;
-    musicInterval = constrain(musicInterval, 1000, 3000); // Conservative bounds to prevent spam
+  let notes = pitchMap[event.pitchRange] || [0, 2, 4];
+  let octave = 4;
+  
+  // Play a quick ascending phrase
+  for (let i = 0; i < notes.length; i++) {
+    setTimeout(() => {
+      let note = getScaleNote(notes[i], octave);
+      let velocity = map(event.intensity, 0, 1, 0.1, 0.4);
+      musicSystem.melodySynth.play(note, velocity, 0, 0.2);
+    }, i * 150); // Staggered timing
   }
 }
 
-function shouldTriggerNote() {
-  // Simple approach: Only trigger music when there's an actual sound event
-  // Use the same logic that triggers fireworks since that's working perfectly
-  
-  // Only trigger if we're currently in a sound event (same as fireworks)
-  if (!soundEventActive) {
-    return false;
-  }
-  
-  // Additional check: make sure it's not just low-frequency noise
-  if (smoothLevel < 0.1) {
-    return false;
-  }
-  
-  // Debug occasionally (every 2 seconds)
-  if (millis() % 2000 < 20) {
-    console.log(`Music - SoundEvent: ${soundEventActive}, Smooth: ${smoothLevel.toFixed(3)}, Trigger: ${soundEventActive && smoothLevel >= 0.1}`);
-  }
-  
-  return true; // If we get here, trigger the note
-}
-
-function playReactiveNote() {
-  // Choose a random note from current scale
-  let noteIndex = floor(random(currentScale.length));
-  let midiNote = currentScale[noteIndex];
-  
-  // Map amplitude to velocity (volume)
-  let currentAmplitude = smoothLevel;
-  let velocity = map(currentAmplitude, 0, 1, 0.1, 0.5); // Keep it subtle
-  
-  // Convert MIDI to frequency and play
-  let frequency = midiToFreq(midiNote);
-  polySynth.play(frequency, velocity, 0, 0.3); // Short notes for subtlety
-}
-
-function getCurrentScaleName() {
-  if (currentScale === musicScales.low) return 'Low (C Major)';
-  if (currentScale === musicScales.midLow) return 'Mid-Low (D Dorian)';
-  if (currentScale === musicScales.midHigh) return 'Mid-High (E Minor)';
-  if (currentScale === musicScales.high) return 'High (G Major)';
-  return 'Unknown';
+// Control functions
+function resetMusicPatterns() {
+  generateInitialPatterns();
+  musicSystem.complexity = 0.1;
+  musicMapping.fireworkEvents = [];
+  musicMapping.eventHistory = [];
 }
