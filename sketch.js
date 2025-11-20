@@ -42,6 +42,8 @@ let soundEventDuration = 200; // ms to analyze after peak detection
 
 // UI visibility toggle
 let showUI = false; // Toggle for hiding/showing text displays
+let micEnabled = true; // Microphone toggle
+let showVisuals = true; // Circle and pitch display toggle
 
 // Advanced Generative Music System
 let musicSystem = {
@@ -160,7 +162,7 @@ function draw() {
   // Check if we should suppress input due to recent music output
   inputSuppressed = (millis() - lastMusicPlayTime) < musicSuppressionDuration;
   
-  let rawLevel = mic.getLevel();
+  let rawLevel = micEnabled ? mic.getLevel() : 0;
   
   // Apply input suppression to prevent feedback loops
   if (inputSuppressed) {
@@ -198,8 +200,10 @@ function draw() {
   
   updateFireworks();
   drawFireworks();
-  drawCircleMeter();
-  drawSpectrum();
+  if (showVisuals) {
+    drawCircleMeter();
+    drawSpectrum();
+  }
   
   displayInfo();
 }
@@ -224,20 +228,9 @@ function displayInfo() {
     text(`Buffer Size: ${soundBuffer.length}/${bufferSize}`, 20, 200);
     
     text('GENERATIVE MUSIC', 20, 240);
-    
-    // Music status with color coding
-    if (musicSystem.enabled) {
-      fill(0, 255, 0); // Green for ON
-      text('Music: ON', 20, 255);
-    } else {
-      fill(255, 100, 100); // Red for OFF
-      text('Music: OFF', 20, 255);
-    }
-    
-    fill(255); // Reset to white for other text
-    text(`Complexity: ${(musicSystem.complexity * 100).toFixed(0)}%`, 20, 270);
-    text(`Activity: ${(musicSystem.activity * 100).toFixed(0)}%`, 20, 285);
-    text(`Events in Memory: ${musicMapping.fireworkEvents.length}`, 20, 300);
+    text(`Complexity: ${(musicSystem.complexity * 100).toFixed(0)}%`, 20, 255);
+    text(`Activity: ${(musicSystem.activity * 100).toFixed(0)}%`, 20, 270);
+    text(`Events in Memory: ${musicMapping.fireworkEvents.length}`, 20, 285);
     
     textAlign(RIGHT);
     textSize(12);
@@ -247,17 +240,41 @@ function displayInfo() {
     text('H: Toggle UI display', width - 20, 70);
     text('M: Toggle music', width - 20, 85);
     text('R: Reset music patterns', width - 20, 100);
+    text('V: Toggle visuals', width - 20, 115);
+    text('N: Toggle microphone', width - 20, 130);
+    
+    // Status indicators
+    text('STATUS', width - 20, 160);
+    
+    // Music status with color
+    if (musicSystem.enabled) {
+      fill(0, 255, 0);
+      text('Music: ON', width - 20, 180);
+    } else {
+      fill(255, 100, 100);
+      text('Music: OFF', width - 20, 180);
+    }
+    
+    // Mic status with color
+    fill(micEnabled ? [0, 255, 0] : [255, 100, 100]);
+    text(micEnabled ? 'Mic: ON' : 'Mic: OFF', width - 20, 200);
+    
+    // Visual status with color
+    fill(showVisuals ? [0, 255, 0] : [255, 100, 100]);
+    text(showVisuals ? 'Visuals: ON' : 'Visuals: OFF', width - 20, 220);
   }
   
-  textAlign(CENTER);
-  if (pitch > 0) {
-    fill(100, 255, 200);
-    textSize(14);
-    text(`Detected Pitch: ${pitch.toFixed(1)} Hz`, width / 2, height - 60);
+  if (showVisuals) {
+    textAlign(CENTER);
+    if (pitch > 0) {
+      fill(100, 255, 200);
+      textSize(14);
+      text(`Detected Pitch: ${pitch.toFixed(1)} Hz`, width / 2, height - 60);
+    }
+    fill(150);
+    textSize(12);
+    text('Try clapping, shouting, or making sudden loud sounds!', width / 2, height - 40);
   }
-  fill(150);
-  textSize(12);
-  text('Try clapping, shouting, or making sudden loud sounds!', width / 2, height - 40);
 }
 
 function drawCircleMeter() {
@@ -744,6 +761,10 @@ function drawFireworks() {
       }
     }
   }
+  
+  // Reset graphics state to prevent interference with text rendering
+  noStroke();
+  fill(255);
 }
 
 // Handle user interaction for microphone permission
@@ -803,6 +824,12 @@ function keyPressed() {
   } else if (key === 'r' || key === 'R') {
     resetMusicPatterns();
     console.log('Music patterns reset');
+  } else if (key === 'v' || key === 'V') {
+    showVisuals = !showVisuals;
+    console.log('Visuals toggled:', showVisuals ? 'ON' : 'OFF');
+  } else if (key === 'n' || key === 'N') {
+    micEnabled = !micEnabled;
+    console.log('Microphone toggled:', micEnabled ? 'ON' : 'OFF');
   }
 }
 
