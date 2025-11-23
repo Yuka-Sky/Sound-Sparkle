@@ -41,7 +41,7 @@ let soundEventStartTime = 0;
 let soundEventDuration = 200; // ms to analyze after peak detection
 
 // UI visibility toggle
-let showUI = false; // Toggle for hiding/showing text displays
+let showUI = true; // Toggle for hiding/showing text displays
 let micEnabled = true; // Microphone toggle
 let showVisuals = true; // Circle and pitch display toggle
 
@@ -240,8 +240,8 @@ function displayInfo() {
     text('R: Reset music patterns', width - 20, 70);
     text('1: Toggle UI display', width - 20, 85);
     text('2: Toggle music', width - 20, 100);
-    text('3: Toggle visuals', width - 20, 115);
-    text('4: Toggle microphone', width - 20, 130);
+    text('3: Toggle microphone', width - 20, 115);
+    text('4: Toggle visuals', width - 20, 130);
     
     // Status indicators
     text('STATUS', width - 20, 160);
@@ -832,9 +832,6 @@ function keyPressed() {
     console.log('Visuals toggled:', showVisuals ? 'ON' : 'OFF');
   }
 }
-
-// ============= ADVANCED GENERATIVE MUSIC SYSTEM =============
-// Creates evolving musical compositions based on firework events and audio analysis
 
 function initializeGenerativeMusic() {
   console.log('Initializing generative music system...');
