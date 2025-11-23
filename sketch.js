@@ -823,6 +823,9 @@ function keyPressed() {
     console.log(`UI display ${showUI ? 'shown' : 'hidden'}`);
   } else if (key === '2' || key === 'M') {
     musicSystem.enabled = !musicSystem.enabled;
+    if (!musicSystem.enabled) {
+      lastMusicPlayTime = 0; // Reset music play time
+    }
     console.log('Music toggled:', musicSystem.enabled ? 'ON' : 'OFF');
   } else if (key === '3' || key === 'N') {
     micEnabled = !micEnabled;
