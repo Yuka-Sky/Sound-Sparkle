@@ -240,8 +240,8 @@ function displayInfo() {
     text('R: Reset music patterns', width - 20, 70);
     text('1: Toggle UI display', width - 20, 85);
     text('2: Toggle music', width - 20, 100);
-    text('3: Toggle visuals', width - 20, 115);
-    text('4: Toggle microphone', width - 20, 130);
+    text('3: Toggle microphone', width - 20, 115);
+    text('4: Toggle visuals', width - 20, 130);
     
     // Status indicators
     text('STATUS', width - 20, 160);
