@@ -237,11 +237,11 @@ function displayInfo() {
     text('CONTROLS', width - 20, 20);
     text('↑/↓: Sensitivity ±0.5', width - 20, 40);
     text('F: Manual firework', width - 20, 55);
-    text('H: Toggle UI display', width - 20, 70);
-    text('M: Toggle music', width - 20, 85);
-    text('R: Reset music patterns', width - 20, 100);
-    text('V: Toggle visuals', width - 20, 115);
-    text('N: Toggle microphone', width - 20, 130);
+    text('R: Reset music patterns', width - 20, 70);
+    text('1: Toggle UI display', width - 20, 85);
+    text('2: Toggle music', width - 20, 100);
+    text('3: Toggle visuals', width - 20, 115);
+    text('4: Toggle microphone', width - 20, 130);
     
     // Status indicators
     text('STATUS', width - 20, 160);
@@ -815,21 +815,21 @@ function keyPressed() {
   } else if (key === 'f' || key === 'F') {
     manualFirework(random(width), random(height/2), pitch || random(200, 800));
     console.log('Manual firework triggered!');
-  } else if (key === 'h' || key === 'H') {
-    showUI = !showUI;
-    console.log(`UI display ${showUI ? 'shown' : 'hidden'}`);
-  } else if (key === 'm' || key === 'M') {
-    musicSystem.enabled = !musicSystem.enabled;
-    console.log('Music toggled:', musicSystem.enabled ? 'ON' : 'OFF');
   } else if (key === 'r' || key === 'R') {
     resetMusicPatterns();
     console.log('Music patterns reset');
-  } else if (key === 'v' || key === 'V') {
-    showVisuals = !showVisuals;
-    console.log('Visuals toggled:', showVisuals ? 'ON' : 'OFF');
-  } else if (key === 'n' || key === 'N') {
+  } else if (key === '1' || key === 'H') {
+    showUI = !showUI;
+    console.log(`UI display ${showUI ? 'shown' : 'hidden'}`);
+  } else if (key === '2' || key === 'M') {
+    musicSystem.enabled = !musicSystem.enabled;
+    console.log('Music toggled:', musicSystem.enabled ? 'ON' : 'OFF');
+  } else if (key === '3' || key === 'N') {
     micEnabled = !micEnabled;
     console.log('Microphone toggled:', micEnabled ? 'ON' : 'OFF');
+  }else if (key === '4' || key === 'V') {
+    showVisuals = !showVisuals;
+    console.log('Visuals toggled:', showVisuals ? 'ON' : 'OFF');
   }
 }
 
